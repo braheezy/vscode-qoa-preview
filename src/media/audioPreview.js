@@ -17,18 +17,13 @@ import { QOADecoder } from "../qoaDecoder.js";
 	let isPlaying = false;
 	let duration = 0;
 	let startTime = 0;
-	let currentTime = 0;
 	let animationFrameId;
 	let sampleRate;
 	let totalSamples;
 	let currentSample = 0;
 	let isSeeking = false;
 	let isInitialized = false;
-	let pauseTime = 0; // Time when paused
-
-
-	// @ts-ignore
-	const vscode = acquireVsCodeApi();
+	let pauseTime = 0;
 
 	function getSettings() {
 		const element = document.getElementById('settings');
@@ -42,11 +37,12 @@ import { QOADecoder } from "../qoaDecoder.js";
 	}
 
 	const settings = getSettings();
-
+	const vscode = acquireVsCodeApi();
 
 	async function fetchAndDecodeAudio() {
 		try {
-			const response = await fetch(settings.src); // Replace with your QOA file URL
+			vscode.postMessage({ type: 'error', message: "fuck" })
+			const response = await fetch(settings.src);
 			const buffer = await response.arrayBuffer();
 
 			const decoder = new QOADecoder();

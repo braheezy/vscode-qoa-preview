@@ -1,6 +1,5 @@
 import * as vscode from 'vscode';
-import { MediaPreview, reopenAsText } from './mediaPreview';
-import { escapeAttribute, getNonce } from './util/dom';
+import { Utils } from 'vscode-uri';
 
 class QOAPreviewProvider implements vscode.CustomReadonlyEditorProvider {
     public static readonly viewType = 'qoa-vscode-extension.qoaPreview';
@@ -19,19 +18,87 @@ class QOAPreviewProvider implements vscode.CustomReadonlyEditorProvider {
     }
 }
 
-class QOAPreview extends MediaPreview {
+export const enum PreviewState {
+    Disposed,
+    Visible,
+    Active,
+}
+export function disposeAll(disposables: vscode.Disposable[]) {
+    while (disposables.length) {
+        const item = disposables.pop();
+        if (item) {
+            item.dispose();
+        }
+    }
+}
+class QOAPreview {
+    protected previewState = PreviewState.Visible;
+    private _isDisposed = false;
+
+    protected _disposables: vscode.Disposable[] = [];
+
+    public dispose(): any {
+        if (this._isDisposed) {
+            return;
+        }
+        this._isDisposed = true;
+        disposeAll(this._disposables);
+    }
+
+    protected _register<T extends vscode.Disposable>(value: T): T {
+        if (this._isDisposed) {
+            value.dispose();
+        } else {
+            this._disposables.push(value);
+        }
+        return value;
+    }
+
+    protected get isDisposed() {
+        return this._isDisposed;
+    }
+
+
     constructor(
         private readonly extensionRoot: vscode.Uri,
-        resource: vscode.Uri,
-        webviewEditor: vscode.WebviewPanel,
+        protected readonly resource: vscode.Uri,
+        protected readonly webviewEditor: vscode.WebviewPanel,
     ) {
-        super(extensionRoot, resource, webviewEditor);
+        webviewEditor.webview.options = {
+            enableScripts: true,
+            enableForms: false,
+            localResourceRoots: [
+                Utils.dirname(resource),
+                extensionRoot,
+            ]
+        };
+
+        this._register(webviewEditor.onDidChangeViewState(() => {
+            this.updateState();
+        }));
+
+        this._register(webviewEditor.onDidDispose(() => {
+            this.previewState = PreviewState.Disposed;
+            this.dispose();
+        }));
+
+        const watcher = this._register(vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(resource, '*')));
+        this._register(watcher.onDidChange(e => {
+            if (e.toString() === this.resource.toString()) {
+                this.render();
+            }
+        }));
+
+        this._register(watcher.onDidDelete(e => {
+            if (e.toString() === this.resource.toString()) {
+                this.webviewEditor.dispose();
+            }
+        }));
 
         this._register(webviewEditor.webview.onDidReceiveMessage(message => {
-            console.log('Message received from webview:', message);
             switch (message.type) {
                 case 'reopen-as-text': {
-                    reopenAsText(resource, webviewEditor.viewColumn);
+                    this.reopenAsText(resource, webviewEditor.viewColumn);
                     break;
                 }
             }
@@ -47,7 +114,7 @@ class QOAPreview extends MediaPreview {
             src: await this.getResourcePath(this.webviewEditor, this.resource, version),
         };
 
-        const nonce = getNonce();
+        const nonce = this.getNonce();
         const cspSource = this.webviewEditor.webview.cspSource;
 
         return /* html */`<!DOCTYPE html>
@@ -61,26 +128,26 @@ class QOAPreview extends MediaPreview {
 
   <title>Audio Preview</title>
 
-  <link rel="stylesheet" href="${escapeAttribute(this.extensionResource('src', 'media', 'audioPreview.css'))}" type="text/css" media="screen" nonce="${nonce}">
+  <link rel="stylesheet" href="${this.escapeAttribute(this.extensionResource('src', 'media', 'audioPreview.css'))}" type="text/css" media="screen" nonce="${nonce}">
 
   <meta http-equiv="Content-Security-Policy"  img-src data: ${cspSource}; media-src ${cspSource}; script-src 'nonce-${nonce}'; style-src ${cspSource} 'nonce-${nonce}';">
-  <meta id="settings" data-settings="${escapeAttribute(JSON.stringify(settings))}">
+  <meta id="settings" data-settings="${this.escapeAttribute(JSON.stringify(settings))}">
 </head>
 <body class="container loading" data-vscode-context='{ "preventDefaultContextMenuItems": true }'>
   <div class="audio-player">
     <button class="play-pause" id="play-pause-btn">
-      <img src="${escapeAttribute(this.extensionResource('src', 'media', 'play.svg'))}" alt="Play" id="play-icon">
-      <img src="${escapeAttribute(this.extensionResource('src', 'media', 'pause.svg'))}" alt="Pause" id="pause-icon" style="display: none;">
+      <img src="${this.escapeAttribute(this.extensionResource('src', 'media', 'play.svg'))}" alt="Play" id="play-icon">
+      <img src="${this.escapeAttribute(this.extensionResource('src', 'media', 'pause.svg'))}" alt="Pause" id="pause-icon" style="display: none;">
     </button>
     <span class="time-display" id="time-display">0:00 / 0:00</span>
     <input type="range" class="seek-slider" id="seek-slider" max="100" value="0">
     <button class="mute" id="mute-btn">
-      <img src="${escapeAttribute(this.extensionResource('src', 'media', 'volume.svg'))}" alt="Volume" id="volume-icon">
-      <img src="${escapeAttribute(this.extensionResource('src', 'media', 'mute.svg'))}" alt="Mute" id="mute-icon" style="display: none;">
+      <img src="${this.escapeAttribute(this.extensionResource('src', 'media', 'volume.svg'))}" alt="Volume" id="volume-icon">
+      <img src="${this.escapeAttribute(this.extensionResource('src', 'media', 'mute.svg'))}" alt="Mute" id="mute-icon" style="display: none;">
     </button>
   </div>
-  <script type="module" src="${escapeAttribute(this.extensionResource('src', 'qoaDecoder.js'))}" nonce="${nonce}"></script>
-  <script type="module" src="${escapeAttribute(this.extensionResource('src', 'media', 'audioPreview.js'))}" nonce="${nonce}"></script>
+  <script type="module" src="${this.escapeAttribute(this.extensionResource('src', 'qoaDecoder.js'))}" nonce="${nonce}"></script>
+  <script type="module" src="${this.escapeAttribute(this.extensionResource('src', 'media', 'audioPreview.js'))}" nonce="${nonce}"></script>
 </body>
 </html>`;
     }
@@ -105,6 +172,74 @@ class QOAPreview extends MediaPreview {
         const resourcePath = this.webviewEditor.webview.asWebviewUri(vscode.Uri.joinPath(this.extensionRoot, ...parts));
         return resourcePath;
     }
+
+    protected updateState() {
+        if (this.previewState === PreviewState.Disposed) {
+            return;
+        }
+
+        if (this.webviewEditor.active) {
+            this.previewState = PreviewState.Active;
+        } else {
+            this.previewState = PreviewState.Visible;
+        }
+    }
+    protected async render() {
+        if (this.previewState === PreviewState.Disposed) {
+            return;
+        }
+        try {
+            const content = await this.getWebviewContents();
+            if (this.previewState as PreviewState === PreviewState.Disposed) {
+                return;
+            }
+            this.webviewEditor.webview.html = content;
+        } catch (error) {
+            const errorMessage = /* html */`<!DOCTYPE html>
+        <html lang="en">
+        <head>
+          <meta charset="UTF-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>Audio Preview Error</title>
+          <style>
+            body { font-family: Arial, sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; background-color: #f1f3f4; }
+            .loading-error { text-align: center; }
+            .loading-error p { margin: 0 0 1em; }
+            .open-file-link { color: #007acc; text-decoration: none; }
+          </style>
+        </head>
+        <body>
+          <div class="loading-error">
+            <p>An error occurred while loading the audio file.</p>
+            <a href="#" class="open-file-link" onclick="reopenAsText()">Open file using VS Code's standard text/binary editor?</a>
+          </div>
+          <script>
+            const vscode = acquireVsCodeApi();
+            function reopenAsText() {
+              vscode.postMessage({ type: 'reopen-as-text' });
+            }
+          </script>
+        </body>
+        </html>`;
+            this.webviewEditor.webview.html = errorMessage;
+        }
+    }
+    protected reopenAsText(resource: vscode.Uri, viewColumn: vscode.ViewColumn | undefined) {
+        vscode.commands.executeCommand('vscode.openWith', resource, 'default', viewColumn);
+    }
+    protected escapeAttribute(value: string | vscode.Uri): string {
+        return value.toString().replace(/"/g, '&quot;');
+    }
+
+    protected getNonce() {
+        let text = '';
+        const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+        for (let i = 0; i < 64; i++) {
+            text += possible.charAt(Math.floor(Math.random() * possible.length));
+        }
+        return text;
+    }
+
 }
 
 export function registerQOAPreviewSupport(context: vscode.ExtensionContext): vscode.Disposable {
