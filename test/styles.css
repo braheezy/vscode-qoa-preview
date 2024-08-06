@@ -1,0 +1,65 @@
+body {
+    font-family: Arial, sans-serif;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    background-color: #f0f0f0;
+    margin: 0;
+}
+
+.audio-player {
+    display: flex;
+    align-items: center;
+    background-color: #f1f3f4;
+    padding: 10px 20px;
+    border-radius: 12px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    width: 500px;
+}
+
+.audio-player button {
+    background: none;
+    border: none;
+    cursor: pointer;
+    margin: 0 10px;
+}
+
+.audio-player img {
+    width: 24px;
+    height: 24px;
+}
+
+.audio-player .time-display {
+    margin: 0 10px;
+    font-size: 14px;
+    color: #616161;
+}
+
+.audio-player .seek-slider {
+    -webkit-appearance: none;
+    width: 100%;
+    height: 5px;
+    background: #616161;
+    border: 1px solid #b5b6b7;
+    border-radius: 5px;
+    outline: none;
+    margin: 0 10px;
+}
+
+.audio-player .seek-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 12px;
+    height: 12px;
+    background: #333;
+    border-radius: 50%;
+    cursor: pointer;
+}
+
+.audio-player .seek-slider::-moz-range-thumb {
+    width: 12px;
+    height: 12px;
+    background: #333;
+    border-radius: 50%;
+    cursor: pointer;
+}

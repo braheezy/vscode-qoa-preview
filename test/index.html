@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="styles.css">
+    <title>Custom Audio Player</title>
+</head>
+
+<body>
+    <div class="audio-player">
+        <button class="play-pause" id="play-pause-btn">
+            <img src="play.svg" alt="Play" id="play-icon">
+            <img src="pause.svg" alt="Pause" id="pause-icon" style="display: none;">
+        </button>
+        <span class="time-display" id="time-display">0:00 / 0:00</span>
+        <input type="range" class="seek-slider" id="seek-slider" max="100" value="0">
+        <button class="mute" id="mute-btn">
+            <img src="volume.svg" alt="Volume" id="volume-icon">
+            <img src="mute.svg" alt="Mute" id="mute-icon" style="display: none;">
+        </button>
+    </div>
+    <script src="script.js"></script>
+</body>
+
+</html>

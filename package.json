@@ -1,8 +1,13 @@
 {
   "main": "./dist/extension.cjs",
   "module": "index.ts",
+  "extensionKind": [
+    "ui",
+    "workspace"
+  ],
   "dependencies": {
-    "@types/vscode": "^1.86.0"
+    "@types/vscode": "^1.86.0",
+    "vscode-uri": "^3.0.6"
   },
   "devDependencies": {
     "@types/bun": "latest",
@@ -24,17 +29,22 @@
   "//": "START EXTENSION ATTRIBUTES",
   "name": "qoa-vscode-extension",
   "version": "0.0.1",
-  "description": "Extension description",
-  "displayName": "Extension display name",
+  "description": "Play QOA audio files.",
+  "displayName": "qoa",
   "repository": {
     "type": "git",
-    "url": "https://github.com/YOURNAME"
+    "url": "https://github.com/braheezy/qoa-vscode-extension"
   },
   "contributes": {
-    "commands": [
+    "customEditors": [
       {
-        "command": "bun-vscode-extension.helloworld",
-        "title": "Hello World"
+        "viewType": "qoa-vscode-extension.qoaPreview",
+        "displayName": "QOAPlayer",
+        "selector": [
+          {
+            "filenamePattern": "*.qoa"
+          }
+        ]
       }
     ]
   },
