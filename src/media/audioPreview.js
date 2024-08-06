@@ -6,15 +6,26 @@ import { QOADecoder } from "../qoaDecoder.js";
 	const timeDisplay = document.querySelector('.time-display');
 	const playIcon = document.getElementById('play-icon');
 	const pauseIcon = document.getElementById('pause-icon');
+	const muteBtn = document.querySelector('.mute');
+	const volumeIcon = document.getElementById('volume-icon');
+	const muteIcon = document.getElementById('mute-icon');
 
 	let audioBuffer;
-	let context;
+	let context = new AudioContext();
+	let gainNode = context.createGain();
 	let source;
 	let isPlaying = false;
 	let duration = 0;
 	let startTime = 0;
 	let currentTime = 0;
 	let animationFrameId;
+	let sampleRate;
+	let totalSamples;
+	let currentSample = 0;
+	let isSeeking = false;
+	let isInitialized = false;
+	let pauseTime = 0; // Time when paused
+
 
 	// @ts-ignore
 	const vscode = acquireVsCodeApi();
@@ -32,6 +43,7 @@ import { QOADecoder } from "../qoaDecoder.js";
 
 	const settings = getSettings();
 
+
 	async function fetchAndDecodeAudio() {
 		try {
 			const response = await fetch(settings.src); // Replace with your QOA file URL
@@ -48,8 +60,8 @@ import { QOADecoder } from "../qoaDecoder.js";
 			}
 
 			const channels = decoder.getChannels();
-			const sampleRate = decoder.getSampleRate();
-			const totalSamples = decoder.getTotalSamples();
+			sampleRate = decoder.getSampleRate();
+			totalSamples = decoder.getTotalSamples();
 
 			const samples = new Int16Array(totalSamples * channels);
 			let sampleIndex = 0;
@@ -62,7 +74,6 @@ import { QOADecoder } from "../qoaDecoder.js";
 				sampleIndex += frameSamples * channels;
 			}
 
-			context = new AudioContext();
 			audioBuffer = context.createBuffer(channels, samples.length / channels, sampleRate);
 
 			for (let i = 0; i < channels; i++) {
@@ -76,6 +87,8 @@ import { QOADecoder } from "../qoaDecoder.js";
 			duration = audioBuffer.duration;
 			timeDisplay.textContent = `0:00 / ${formatTime(duration)}`;
 			seekSlider.max = duration;
+			seekSlider.value = 0; // Force the slider to the beginning
+			seekSlider.style.setProperty('--seek-before-width', `0%`); // Set the initial progress bar to 0%
 
 		} catch (error) {
 			console.error('Error processing QOA file:', error);
@@ -88,46 +101,85 @@ import { QOADecoder } from "../qoaDecoder.js";
 		return `${minutes}:${secs < 10 ? '0' : ''}${secs}`;
 	}
 
-	function playAudio() {
-		if (source) {
-			source.stop();
-		}
+	function createSource() {
 		source = context.createBufferSource();
 		source.buffer = audioBuffer;
-		source.connect(context.destination);
+		source.connect(gainNode);
+		gainNode.connect(context.destination);
 		source.onended = () => {
-			isPlaying = false;
-			playIcon.style.display = 'block';
-			pauseIcon.style.display = 'none';
-			currentTime = 0;
-			seekSlider.value = 0;
-			cancelAnimationFrame(animationFrameId);
+			if (!isSeeking) {
+				isPlaying = false;
+				playIcon.style.display = 'block';
+				pauseIcon.style.display = 'none';
+				currentSample = 0;
+				seekSlider.value = 0;
+				cancelAnimationFrame(animationFrameId);
+			}
 		};
-		source.start(0, currentTime);
-		startTime = context.currentTime - currentTime;
-		isPlaying = true;
-		playIcon.style.display = 'none';
-		pauseIcon.style.display = 'block';
-		updateProgress();
+	}
+
+	function playAudio() {
+		if (context.state === 'suspended' && isInitialized) {
+			context.resume();
+			startTime = context.currentTime - pauseTime; // Resume from the paused time
+			isPlaying = true;
+			playIcon.style.display = 'none';
+			pauseIcon.style.display = 'block';
+			updateProgress();
+			return;
+		}
+
+		if (!isInitialized) {
+			createSource();
+			source.start(0, currentSample / sampleRate);
+			startTime = context.currentTime;
+			isPlaying = true;
+			playIcon.style.display = 'none';
+			pauseIcon.style.display = 'block';
+			updateProgress();
+			isInitialized = true;
+		} else {
+			createSource();
+			source.start(0, currentSample / sampleRate);
+			startTime = context.currentTime - (currentSample / sampleRate);
+			isPlaying = true;
+			playIcon.style.display = 'none';
+			pauseIcon.style.display = 'block';
+			updateProgress();
+		}
 	}
 
 	function pauseAudio() {
-		if (source) {
-			source.playbackRate.value = 0;
-			currentTime += context.currentTime - startTime;
+		if (context.state === 'running') {
+			context.suspend();
+			pauseTime = context.currentTime - startTime; // Save the pause time
+			isPlaying = false;
+			playIcon.style.display = 'block';
+			pauseIcon.style.display = 'none';
+			cancelAnimationFrame(animationFrameId);
 		}
-		isPlaying = false;
-		playIcon.style.display = 'block';
-		pauseIcon.style.display = 'none';
-		cancelAnimationFrame(animationFrameId);
 	}
 
 	function updateProgress() {
 		if (isPlaying) {
-			currentTime = context.currentTime - startTime;
-			seekSlider.value = currentTime;
-			timeDisplay.textContent = `${formatTime(currentTime)} / ${formatTime(duration)}`;
+			const elapsed = context.currentTime - startTime;
+			currentSample = elapsed * sampleRate;
+			const progress = (elapsed / duration) * 100;
+			seekSlider.value = elapsed;
+			seekSlider.style.setProperty('--seek-before-width', `${progress}%`); // Update progress bar
+			timeDisplay.textContent = `${formatTime(elapsed)} / ${formatTime(duration)}`;
 			animationFrameId = requestAnimationFrame(updateProgress);
+		}
+	}
+	function seekAudio() {
+		const seekTime = currentSample / sampleRate; // Calculate the seek time
+		source.disconnect()
+		createSource();
+		source.start(0, seekTime);
+		if (isPlaying) {
+			startTime = context.currentTime - seekTime; // Adjust start time based on seek time
+		} else {
+			pauseTime = seekTime; // Adjust pause time based on seek time if not playing
 		}
 	}
 
@@ -139,26 +191,34 @@ import { QOADecoder } from "../qoaDecoder.js";
 		}
 	});
 
+	muteBtn.onclick = () => {
+		if (!muteBtn.classList.contains("activated")) {
+			gainNode.gain.setValueAtTime(0, context.currentTime);
+			muteBtn.classList.add("activated");
+			muteIcon.style.display = 'block';
+			volumeIcon.style.display = 'none';
+		} else {
+			gainNode.gain.setValueAtTime(1, context.currentTime);
+			muteBtn.classList.remove("activated");
+			muteIcon.style.display = 'none';
+			volumeIcon.style.display = 'block';
+		}
+	};
+
+
 	seekSlider.addEventListener('input', () => {
-		currentTime = parseFloat(seekSlider.value);
-		timeDisplay.textContent = `${formatTime(currentTime)} / ${formatTime(duration)}`;
+		currentSample = parseFloat(seekSlider.value) * sampleRate;
+		timeDisplay.textContent = `${formatTime(currentSample / sampleRate)} / ${formatTime(duration)}`;
 		if (isPlaying) {
-			source.stop();
-			playAudio();
+			seekAudio();
 		}
 	});
 
 	seekSlider.addEventListener('change', () => {
-		currentTime = parseFloat(seekSlider.value);
-		timeDisplay.textContent = `${formatTime(currentTime)} / ${formatTime(duration)}`;
 		if (isPlaying) {
-			source.stop();
-			playAudio();
-		} else {
-			context.resume().then(() => {
-				startTime = context.currentTime - currentTime;
-				source.start(0, currentTime);
-			});
+			currentSample = parseFloat(seekSlider.value) * sampleRate;
+			timeDisplay.textContent = `${formatTime(currentSample / sampleRate)} / ${formatTime(duration)}`;
+			seekAudio();
 		}
 	});
 

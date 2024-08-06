@@ -8,17 +8,13 @@ class QOAPreviewProvider implements vscode.CustomReadonlyEditorProvider {
     constructor(
         private readonly extensionRoot: vscode.Uri,
     ) {
-        console.log('QOAPreviewProvider constructor called');
     }
 
     public async openCustomDocument(uri: vscode.Uri) {
-        console.log('openCustomDocument called with URI:', uri.toString());
         return { uri, dispose: () => { } };
     }
 
     public async resolveCustomEditor(document: vscode.CustomDocument, webviewEditor: vscode.WebviewPanel): Promise<void> {
-        console.log('resolveCustomEditor called with document URI:', document.uri.toString());
-        console.log('resolveCustomEditor extensionRoot:', this.extensionRoot);
         new QOAPreview(this.extensionRoot, document.uri, webviewEditor);
     }
 }
@@ -30,7 +26,6 @@ class QOAPreview extends MediaPreview {
         webviewEditor: vscode.WebviewPanel,
     ) {
         super(extensionRoot, resource, webviewEditor);
-        console.log('QOAPreview constructor called with resource URI:', resource.toString());
 
         this._register(webviewEditor.webview.onDidReceiveMessage(message => {
             console.log('Message received from webview:', message);
@@ -42,7 +37,6 @@ class QOAPreview extends MediaPreview {
             }
         }));
 
-        this.updateBinarySize();
         this.render();
         this.updateState();
     }
@@ -52,9 +46,6 @@ class QOAPreview extends MediaPreview {
         const settings = {
             src: await this.getResourcePath(this.webviewEditor, this.resource, version),
         };
-
-        console.log('getWebviewContents called, settings:', settings);
-        console.log('getWebviewContents called, this.webviewEditor.webview.cspSource:', this.webviewEditor.webview.cspSource);
 
         const nonce = getNonce();
         const cspSource = this.webviewEditor.webview.cspSource;
@@ -95,7 +86,6 @@ class QOAPreview extends MediaPreview {
     }
 
     private async getResourcePath(webviewEditor: vscode.WebviewPanel, resource: vscode.Uri, version: string): Promise<string | null> {
-        console.log('getResourcePath called with resource URI:', resource.toString());
         if (resource.scheme === 'git') {
             const stat = await vscode.workspace.fs.stat(resource);
             if (stat.size === 0) {
@@ -113,13 +103,11 @@ class QOAPreview extends MediaPreview {
 
     private extensionResource(...parts: string[]) {
         const resourcePath = this.webviewEditor.webview.asWebviewUri(vscode.Uri.joinPath(this.extensionRoot, ...parts));
-        console.log('extensionResource called, resource path:', resourcePath.toString());
         return resourcePath;
     }
 }
 
 export function registerQOAPreviewSupport(context: vscode.ExtensionContext): vscode.Disposable {
-    console.log('registerQOAPreviewSupport called', context.extensionUri);
     const provider = new QOAPreviewProvider(context.extensionUri);
     return vscode.window.registerCustomEditorProvider(QOAPreviewProvider.viewType, provider, {
         supportsMultipleEditorsPerDocument: true,

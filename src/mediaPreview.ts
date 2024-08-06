@@ -5,7 +5,6 @@
 
 import * as vscode from 'vscode';
 import { Utils } from 'vscode-uri';
-// import { BinarySizeStatusBarEntry } from './binarySizeStatusBarEntry';
 import { Disposable } from './util/dispose';
 
 export function reopenAsText(resource: vscode.Uri, viewColumn: vscode.ViewColumn | undefined) {
@@ -21,13 +20,11 @@ export const enum PreviewState {
 export abstract class MediaPreview extends Disposable {
 
 	protected previewState = PreviewState.Visible;
-	private _binarySize: number | undefined;
 
 	constructor(
 		extensionRoot: vscode.Uri,
 		protected readonly resource: vscode.Uri,
 		protected readonly webviewEditor: vscode.WebviewPanel,
-		// private readonly binarySizeStatusBarEntry: BinarySizeStatusBarEntry,
 	) {
 		super();
 
@@ -52,7 +49,6 @@ export abstract class MediaPreview extends Disposable {
 		const watcher = this._register(vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(resource, '*')));
 		this._register(watcher.onDidChange(e => {
 			if (e.toString() === this.resource.toString()) {
-				this.updateBinarySize();
 				this.render();
 			}
 		}));
@@ -66,19 +62,9 @@ export abstract class MediaPreview extends Disposable {
 
 	public override dispose() {
 		super.dispose();
-		// this.binarySizeStatusBarEntry.hide(this);
-	}
-
-	protected updateBinarySize() {
-		console.log('updateBinarySize called');
-		vscode.workspace.fs.stat(this.resource).then(({ size }) => {
-			this._binarySize = size;
-			this.updateState();
-		});
 	}
 
 	protected async render() {
-		console.log('render called');
 		if (this.previewState === PreviewState.Disposed) {
 			return;
 		}
@@ -94,20 +80,14 @@ export abstract class MediaPreview extends Disposable {
 	protected abstract getWebviewContents(): Promise<string>;
 
 	protected updateState() {
-		console.log('updateState called');
 		if (this.previewState === PreviewState.Disposed) {
-			console.log('PreviewState.Disposed');
 			return;
 		}
 
 		if (this.webviewEditor.active) {
-			console.log('PreviewState.Active');
 			this.previewState = PreviewState.Active;
-			// this.binarySizeStatusBarEntry.show(this, this._binarySize);
 		} else {
-			// this.binarySizeStatusBarEntry.hide(this);
 			this.previewState = PreviewState.Visible;
-			console.log('PreviewState.Visible');
 		}
 	}
 }

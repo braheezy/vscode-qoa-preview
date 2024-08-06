@@ -8,7 +8,6 @@ let startTime = 0;
 let pauseTime = 0;
 
 async function loadQoaFile() {
-    console.log("Loading QOA file");
     const response = await fetch('./example.qoa');
     const buffer = await response.arrayBuffer();
     console.log("QOA file loaded, decoding");

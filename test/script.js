@@ -1,57 +1,210 @@
-const playPauseBtn = document.getElementById('play-pause-btn');
-const playIcon = document.getElementById('play-icon');
-const pauseIcon = document.getElementById('pause-icon');
-const muteBtn = document.getElementById('mute-btn');
-const volumeIcon = document.getElementById('volume-icon');
-const muteIcon = document.getElementById('mute-icon');
-const seekSlider = document.getElementById('seek-slider');
-const timeDisplay = document.getElementById('time-display');
+import { QOADecoder } from "../qoaDecoder.js";
 
-let isPlaying = false;
-let isMuted = false;
-let audio = new Audio('your-audio-file.qoa'); // Replace with your custom audio format
+(async function () {
+    const playPauseBtn = document.querySelector('.play-pause');
+    const seekSlider = document.querySelector('.seek-slider');
+    const timeDisplay = document.querySelector('.time-display');
+    const playIcon = document.getElementById('play-icon');
+    const pauseIcon = document.getElementById('pause-icon');
+    const muteBtn = document.querySelector('.mute');
+    const volumeIcon = document.getElementById('volume-icon');
+    const muteIcon = document.getElementById('mute-icon');
 
-audio.addEventListener('loadedmetadata', () => {
-    timeDisplay.textContent = `0:00 / ${formatTime(audio.duration)}`;
-    seekSlider.max = audio.duration;
-});
+    let audioBuffer;
+    let context = new AudioContext();
+    let gainNode = context.createGain();
+    let source;
+    let isPlaying = false;
+    let duration = 0;
+    let startTime = 0;
+    let currentTime = 0;
+    let animationFrameId;
+    let sampleRate;
+    let totalSamples;
+    let currentSample = 0;
+    let isSeeking = false;
+    let isInitialized = false;
+    let pauseTime = 0; // Time when paused
 
-audio.addEventListener('timeupdate', () => {
-    timeDisplay.textContent = `${formatTime(audio.currentTime)} / ${formatTime(audio.duration)}`;
-    seekSlider.value = audio.currentTime;
-});
+    async function fetchAndDecodeAudio() {
+        try {
+            const response = await fetch("four_tet_baby.qoa"); // Replace with your QOA file URL
+            const buffer = await response.arrayBuffer();
 
-seekSlider.addEventListener('input', () => {
-    audio.currentTime = seekSlider.value;
-});
+            const decoder = new QOADecoder();
+            const view = new DataView(buffer);
+            let pos = 0;
+            decoder.readByte = () => (pos < buffer.byteLength ? view.getUint8(pos++) : -1);
+            decoder.seekToByte = (position) => { pos = position; };
 
-playPauseBtn.addEventListener('click', () => {
-    if (isPlaying) {
-        audio.pause();
-        playIcon.style.display = 'block';
-        pauseIcon.style.display = 'none';
-    } else {
-        audio.play();
-        playIcon.style.display = 'none';
-        pauseIcon.style.display = 'block';
+            if (!decoder.readHeader()) {
+                throw new Error('Failed to read QOA file header');
+            }
+
+            const channels = decoder.getChannels();
+            sampleRate = decoder.getSampleRate();
+            totalSamples = decoder.getTotalSamples();
+
+            const samples = new Int16Array(totalSamples * channels);
+            let sampleIndex = 0;
+
+            while (!decoder.isEnd()) {
+                const frameSamples = decoder.readFrame(samples.subarray(sampleIndex));
+                if (frameSamples < 0) {
+                    throw new Error('Failed to read QOA frame');
+                }
+                sampleIndex += frameSamples * channels;
+            }
+
+            audioBuffer = context.createBuffer(channels, samples.length / channels, sampleRate);
+
+            for (let i = 0; i < channels; i++) {
+                const channelData = new Float32Array(samples.length / channels);
+                for (let j = 0; j < channelData.length; j++) {
+                    channelData[j] = samples[j * channels + i] / 32768;
+                }
+                audioBuffer.copyToChannel(channelData, i);
+            }
+
+            duration = audioBuffer.duration;
+            timeDisplay.textContent = `0:00 / ${formatTime(duration)}`;
+            seekSlider.max = duration;
+            seekSlider.value = 0; // Force the slider to the beginning
+            seekSlider.style.setProperty('--seek-before-width', `0%`); // Set the initial progress bar to 0%
+
+        } catch (error) {
+            console.error('Error processing QOA file:', error);
+        }
     }
-    isPlaying = !isPlaying;
-});
 
-muteBtn.addEventListener('click', () => {
-    audio.muted = !audio.muted;
-    if (audio.muted) {
-        volumeIcon.style.display = 'none';
-        muteIcon.style.display = 'block';
-    } else {
-        volumeIcon.style.display = 'block';
-        muteIcon.style.display = 'none';
+    function formatTime(seconds) {
+        const minutes = Math.floor(seconds / 60);
+        const secs = Math.floor(seconds % 60);
+        return `${minutes}:${secs < 10 ? '0' : ''}${secs}`;
     }
-    isMuted = !isMuted;
-});
 
-function formatTime(seconds) {
-    const minutes = Math.floor(seconds / 60);
-    seconds = Math.floor(seconds % 60);
-    return `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
-}
+    function createSource() {
+        source = context.createBufferSource();
+        source.buffer = audioBuffer;
+        source.connect(gainNode);
+        gainNode.connect(context.destination);
+        source.onended = () => {
+            if (!isSeeking) {
+                isPlaying = false;
+                playIcon.style.display = 'block';
+                pauseIcon.style.display = 'none';
+                currentSample = 0;
+                seekSlider.value = 0;
+                cancelAnimationFrame(animationFrameId);
+            }
+        };
+    }
+
+    function playAudio() {
+        if (context.state === 'suspended' && isInitialized) {
+            context.resume();
+            startTime = context.currentTime - pauseTime; // Resume from the paused time
+            isPlaying = true;
+            playIcon.style.display = 'none';
+            pauseIcon.style.display = 'block';
+            updateProgress();
+            return;
+        }
+
+        if (!isInitialized) {
+            createSource();
+            source.start(0, currentSample / sampleRate);
+            startTime = context.currentTime;
+            isPlaying = true;
+            playIcon.style.display = 'none';
+            pauseIcon.style.display = 'block';
+            updateProgress();
+            isInitialized = true;
+        } else {
+            createSource();
+            source.start(0, currentSample / sampleRate);
+            startTime = context.currentTime - (currentSample / sampleRate);
+            isPlaying = true;
+            playIcon.style.display = 'none';
+            pauseIcon.style.display = 'block';
+            updateProgress();
+        }
+    }
+
+    function pauseAudio() {
+        if (context.state === 'running') {
+            context.suspend();
+            pauseTime = context.currentTime - startTime; // Save the pause time
+            isPlaying = false;
+            playIcon.style.display = 'block';
+            pauseIcon.style.display = 'none';
+            cancelAnimationFrame(animationFrameId);
+        }
+    }
+
+    function updateProgress() {
+        if (isPlaying) {
+            const elapsed = context.currentTime - startTime;
+            currentSample = elapsed * sampleRate;
+            const progress = (elapsed / duration) * 100;
+            seekSlider.value = elapsed;
+            seekSlider.style.setProperty('--seek-before-width', `${progress}%`); // Update progress bar
+            timeDisplay.textContent = `${formatTime(elapsed)} / ${formatTime(duration)}`;
+            animationFrameId = requestAnimationFrame(updateProgress);
+        }
+    }
+    function seekAudio() {
+        const seekTime = currentSample / sampleRate; // Calculate the seek time
+        source.disconnect()
+        createSource();
+        console.log("seeking to", seekTime)
+        source.start(0, seekTime);
+        if (isPlaying) {
+            startTime = context.currentTime - seekTime; // Adjust start time based on seek time
+        } else {
+            pauseTime = seekTime; // Adjust pause time based on seek time if not playing
+        }
+    }
+
+    playPauseBtn.addEventListener('click', () => {
+        if (isPlaying) {
+            pauseAudio();
+        } else {
+            console.log("calling playAudio in click")
+            playAudio();
+        }
+    });
+
+    muteBtn.onclick = () => {
+        if (!muteBtn.classList.contains("activated")) {
+            gainNode.gain.setValueAtTime(0, context.currentTime);
+            muteBtn.classList.add("activated");
+            muteIcon.style.display = 'block';
+            volumeIcon.style.display = 'none';
+        } else {
+            gainNode.gain.setValueAtTime(1, context.currentTime);
+            muteBtn.classList.remove("activated");
+            muteIcon.style.display = 'none';
+            volumeIcon.style.display = 'block';
+        }
+    };
+
+
+    seekSlider.addEventListener('input', () => {
+        currentSample = parseFloat(seekSlider.value) * sampleRate;
+        timeDisplay.textContent = `${formatTime(currentSample / sampleRate)} / ${formatTime(duration)}`;
+        if (isPlaying) {
+            seekAudio();
+        }
+    });
+
+    seekSlider.addEventListener('change', () => {
+        if (isPlaying) {
+            currentSample = parseFloat(seekSlider.value) * sampleRate;
+            timeDisplay.textContent = `${formatTime(currentSample / sampleRate)} / ${formatTime(duration)}`;
+            seekAudio();
+        }
+    });
+
+    await fetchAndDecodeAudio();
+})();

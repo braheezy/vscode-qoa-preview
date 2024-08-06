@@ -4,20 +4,20 @@
  * Least Mean Squares Filter.
  */
 class LMS {
-    readonly history: Int32Array = new Int32Array(4);
-    readonly weights: Int32Array = new Int32Array(4);
+    history = new Int32Array(4);
+    weights = new Int32Array(4);
 
-    assign(source: LMS): void {
+    assign(source) {
         this.history.set(source.history);
         this.weights.set(source.weights);
     }
 
-    predict(): number {
+    predict() {
         return (this.history[0] * this.weights[0] + this.history[1] * this.weights[1] + this.history[2] * this.weights[2] + this.history[3] * this.weights[3]) >> 13;
     }
 
-    update(sample: number, residual: number): void {
-        let delta: number = residual >> 4;
+    update(sample, residual) {
+        let delta = residual >> 4;
         this.weights[0] += this.history[0] < 0 ? -delta : delta;
         this.weights[1] += this.history[1] < 0 ? -delta : delta;
         this.weights[2] += this.history[2] < 0 ? -delta : delta;
@@ -32,50 +32,50 @@ class LMS {
 /**
  * Common part of the "Quite OK Audio" format encoder and decoder.
  */
-export abstract class QOABase {
+export class QOABase {
 
-    protected static clamp(value: number, min: number, max: number): number {
+    static clamp(value, min, max) {
         return value < min ? min : value > max ? max : value;
     }
-    protected frameHeader: number;
+    frameHeader;
 
     /**
      * Maximum number of channels supported by the format.
      */
-    public static readonly MAX_CHANNELS: number = 8;
+    static MAX_CHANNELS = 8;
 
     /**
      * Returns the number of audio channels.
      */
-    public getChannels(): number {
+    getChannels() {
         return this.frameHeader >> 24;
     }
 
     /**
      * Returns the sample rate in Hz.
      */
-    public getSampleRate(): number {
+    getSampleRate() {
         return this.frameHeader & 16777215;
     }
 
-    protected static readonly SLICE_SAMPLES: number = 20;
+    static SLICE_SAMPLES = 20;
 
-    protected static readonly MAX_FRAME_SLICES: number = 256;
+    static MAX_FRAME_SLICES = 256;
 
     /**
      * Maximum number of samples per frame.
      */
-    public static readonly MAX_FRAME_SAMPLES: number = 5120;
+    static MAX_FRAME_SAMPLES = 5120;
 
-    protected getFrameBytes(sampleCount: number): number {
-        let slices: number = (sampleCount + 19) / 20 | 0;
+    getFrameBytes(sampleCount) {
+        let slices = (sampleCount + 19) / 20 | 0;
         return 8 + this.getChannels() * (16 + slices * 8);
     }
 
-    protected static readonly SCALE_FACTORS: Readonly<Int16Array> = new Int16Array([1, 7, 21, 45, 84, 138, 211, 304, 421, 562, 731, 928, 1157, 1419, 1715, 2048]);
+    static SCALE_FACTORS = new Int16Array([1, 7, 21, 45, 84, 138, 211, 304, 421, 562, 731, 928, 1157, 1419, 1715, 2048]);
 
-    protected static dequantize(quantized: number, scaleFactor: number): number {
-        let dequantized: number;
+    static dequantize(quantized, scaleFactor) {
+        let dequantized;
         switch (quantized >> 1) {
             case 0:
                 dequantized = (scaleFactor * 3 + 2) >> 2;
@@ -97,21 +97,14 @@ export abstract class QOABase {
 /**
  * Encoder of the "Quite OK Audio" format.
  */
-export abstract class QOAEncoder extends QOABase {
+export class QOAEncoder extends QOABase {
     constructor() {
         super();
         for (let _i0 = 0; _i0 < 8; _i0++) {
             this.#lMSes[_i0] = new LMS();
         }
     }
-
-    /**
-     * Writes the 64-bit integer in big endian order.
-     * Returns <code>true</code> on success.
-     * @param l The integer to be written to the QOA stream.
-     */
-    protected abstract writeLong(l: bigint): boolean;
-    readonly #lMSes: LMS[] = new Array(8);
+    #lMSes = new Array(8);
 
     /**
      * Writes the file header.
@@ -120,25 +113,25 @@ export abstract class QOAEncoder extends QOABase {
      * @param channels Number of audio channels.
      * @param sampleRate Sample rate in Hz.
      */
-    public writeHeader(totalSamples: number, channels: number, sampleRate: number): boolean {
+    writeHeader(totalSamples, channels, sampleRate) {
         if (totalSamples <= 0 || channels <= 0 || channels > 8 || sampleRate <= 0 || sampleRate >= 16777216)
             return false;
         this.frameHeader = channels << 24 | sampleRate;
-        for (let c: number = 0; c < channels; c++) {
+        for (let c = 0; c < channels; c++) {
             this.#lMSes[c].history.fill(0);
             this.#lMSes[c].weights[0] = 0;
             this.#lMSes[c].weights[1] = 0;
             this.#lMSes[c].weights[2] = -8192;
             this.#lMSes[c].weights[3] = 16384;
         }
-        let magic: bigint = 1903124838n;
+        let magic = 1903124838n;
         return this.writeLong(magic << 32n | BigInt(totalSamples));
     }
 
-    #writeLMS(a: Readonly<Int32Array>): boolean {
-        let a0: bigint = BigInt(a[0]);
-        let a1: bigint = BigInt(a[1]);
-        let a2: bigint = BigInt(a[2]);
+    #writeLMS(a) {
+        let a0 = BigInt(a[0]);
+        let a1 = BigInt(a[1]);
+        let a2 = BigInt(a[2]);
         return this.writeLong(a0 << 48n | (a1 & 65535n) << 32n | (a2 & 65535n) << 16n | BigInt(a[3] & 65535));
     }
 
@@ -147,48 +140,48 @@ export abstract class QOAEncoder extends QOABase {
      * @param samples PCM samples: <code>samplesCount * channels</code> elements.
      * @param samplesCount Number of samples per channel.
      */
-    public writeFrame(samples: Readonly<Int16Array>, samplesCount: number): boolean {
+    writeFrame(samples, samplesCount) {
         if (samplesCount <= 0 || samplesCount > 5120)
             return false;
-        let header: bigint = BigInt(this.frameHeader);
+        let header = BigInt(this.frameHeader);
         if (!this.writeLong(header << 32n | BigInt(samplesCount << 16) | BigInt(this.getFrameBytes(samplesCount))))
             return false;
-        let channels: number = this.getChannels();
-        for (let c: number = 0; c < channels; c++) {
+        let channels = this.getChannels();
+        for (let c = 0; c < channels; c++) {
             if (!this.#writeLMS(this.#lMSes[c].history) || !this.#writeLMS(this.#lMSes[c].weights))
                 return false;
         }
-        const lms: LMS = new LMS();
-        const bestLMS: LMS = new LMS();
-        const lastScaleFactors: Uint8Array = new Uint8Array(8);
-        for (let sampleIndex: number = 0; sampleIndex < samplesCount; sampleIndex += 20) {
-            let sliceSamples: number = samplesCount - sampleIndex;
+        const lms = new LMS();
+        const bestLMS = new LMS();
+        const lastScaleFactors = new Uint8Array(8);
+        for (let sampleIndex = 0; sampleIndex < samplesCount; sampleIndex += 20) {
+            let sliceSamples = samplesCount - sampleIndex;
             if (sliceSamples > 20)
                 sliceSamples = 20;
-            for (let c: number = 0; c < channels; c++) {
-                let bestRank: bigint = 9223372036854775807n;
-                let bestSlice: bigint = 0n;
-                for (let scaleFactorDelta: number = 0; scaleFactorDelta < 16; scaleFactorDelta++) {
-                    let scaleFactor: number = (lastScaleFactors[c] + scaleFactorDelta) & 15;
+            for (let c = 0; c < channels; c++) {
+                let bestRank = 9223372036854775807n;
+                let bestSlice = 0n;
+                for (let scaleFactorDelta = 0; scaleFactorDelta < 16; scaleFactorDelta++) {
+                    let scaleFactor = (lastScaleFactors[c] + scaleFactorDelta) & 15;
                     lms.assign(this.#lMSes[c]);
-                    let reciprocal: number = QOAEncoder.#WRITE_FRAME_RECIPROCALS[scaleFactor];
-                    let slice: bigint = BigInt(scaleFactor);
-                    let currentRank: bigint = 0n;
-                    for (let s: number = 0; s < sliceSamples; s++) {
-                        let sample: number = samples[(sampleIndex + s) * channels + c];
-                        let predicted: number = lms.predict();
-                        let residual: number = sample - predicted;
-                        let scaled: number = (residual * reciprocal + 32768) >> 16;
+                    let reciprocal = QOAEncoder.#WRITE_FRAME_RECIPROCALS[scaleFactor];
+                    let slice = BigInt(scaleFactor);
+                    let currentRank = 0n;
+                    for (let s = 0; s < sliceSamples; s++) {
+                        let sample = samples[(sampleIndex + s) * channels + c];
+                        let predicted = lms.predict();
+                        let residual = sample - predicted;
+                        let scaled = (residual * reciprocal + 32768) >> 16;
                         if (scaled != 0)
                             scaled += scaled < 0 ? 1 : -1;
                         if (residual != 0)
                             scaled += residual > 0 ? 1 : -1;
-                        let quantized: number = QOAEncoder.#WRITE_FRAME_QUANT_TAB[8 + QOAEncoder.clamp(scaled, -8, 8)];
-                        let dequantized: number = QOAEncoder.dequantize(quantized, QOAEncoder.SCALE_FACTORS[scaleFactor]);
-                        let reconstructed: number = QOAEncoder.clamp(predicted + dequantized, -32768, 32767);
-                        let error: bigint = BigInt(sample - reconstructed);
+                        let quantized = QOAEncoder.#WRITE_FRAME_QUANT_TAB[8 + QOAEncoder.clamp(scaled, -8, 8)];
+                        let dequantized = QOAEncoder.dequantize(quantized, QOAEncoder.SCALE_FACTORS[scaleFactor]);
+                        let reconstructed = QOAEncoder.clamp(predicted + dequantized, -32768, 32767);
+                        let error = BigInt(sample - reconstructed);
                         currentRank += error * error;
-                        let weightsPenalty: number = ((lms.weights[0] * lms.weights[0] + lms.weights[1] * lms.weights[1] + lms.weights[2] * lms.weights[2] + lms.weights[3] * lms.weights[3]) >> 18) - 2303;
+                        let weightsPenalty = ((lms.weights[0] * lms.weights[0] + lms.weights[1] * lms.weights[1] + lms.weights[2] * lms.weights[2] + lms.weights[3] * lms.weights[3]) >> 18) - 2303;
                         if (weightsPenalty > 0)
                             currentRank += weightsPenalty;
                         if (currentRank >= bestRank)
@@ -212,52 +205,40 @@ export abstract class QOAEncoder extends QOABase {
         return true;
     }
 
-    static readonly #WRITE_FRAME_RECIPROCALS: Readonly<Int32Array> = new Int32Array([65536, 9363, 3121, 1457, 781, 475, 311, 216, 156, 117, 90, 71, 57, 47, 39, 32]);
+    static #WRITE_FRAME_RECIPROCALS = new Int32Array([65536, 9363, 3121, 1457, 781, 475, 311, 216, 156, 117, 90, 71, 57, 47, 39, 32]);
 
-    static readonly #WRITE_FRAME_QUANT_TAB: Readonly<Uint8Array> = new Uint8Array([7, 7, 7, 5, 5, 3, 3, 1, 0, 0, 2, 2, 4, 4, 6, 6,
+    static #WRITE_FRAME_QUANT_TAB = new Uint8Array([7, 7, 7, 5, 5, 3, 3, 1, 0, 0, 2, 2, 4, 4, 6, 6,
         6]);
 }
 
 /**
  * Decoder of the "Quite OK Audio" format.
  */
-export abstract class QOADecoder extends QOABase {
+export class QOADecoder extends QOABase {
+    #buffer;
+    #bufferBits;
 
-    /**
-     * Reads a byte from the stream.
-     * Returns the unsigned byte value or -1 on EOF.
-     */
-    protected abstract readByte(): number;
-
-    /**
-     * Seeks the stream to the given position.
-     * @param position File offset in bytes.
-     */
-    protected abstract seekToByte(position: number): void;
-    #buffer: number;
-    #bufferBits: number;
-
-    #readBits(bits: number): number {
+    #readBits(bits) {
         while (this.#bufferBits < bits) {
-            let b: number = this.readByte();
+            let b = this.readByte();
             if (b < 0)
                 return -1;
             this.#buffer = this.#buffer << 8 | b;
             this.#bufferBits += 8;
         }
         this.#bufferBits -= bits;
-        let result: number = this.#buffer >> this.#bufferBits;
+        let result = this.#buffer >> this.#bufferBits;
         this.#buffer &= (1 << this.#bufferBits) - 1;
         return result;
     }
-    #totalSamples: number;
-    #positionSamples: number;
+    #totalSamples;
+    #positionSamples;
 
     /**
      * Reads the file header.
      * Returns <code>true</code> if the header is valid.
      */
-    public readHeader(): boolean {
+    readHeader() {
         if (this.readByte() != 113 || this.readByte() != 111 || this.readByte() != 97 || this.readByte() != 102)
             return false;
         this.#bufferBits = this.#buffer = 0;
@@ -268,27 +249,27 @@ export abstract class QOADecoder extends QOABase {
         if (this.frameHeader <= 0)
             return false;
         this.#positionSamples = 0;
-        let channels: number = this.getChannels();
+        let channels = this.getChannels();
         return channels > 0 && channels <= 8 && this.getSampleRate() > 0;
     }
 
     /**
      * Returns the file length in samples per channel.
      */
-    public getTotalSamples(): number {
+    getTotalSamples() {
         return this.#totalSamples;
     }
 
-    #getMaxFrameBytes(): number {
+    #getMaxFrameBytes() {
         return 8 + this.getChannels() * 2064;
     }
 
-    #readLMS(result: Int32Array): boolean {
-        for (let i: number = 0; i < 4; i++) {
-            let hi: number = this.readByte();
+    #readLMS(result) {
+        for (let i = 0; i < 4; i++) {
+            let hi = this.readByte();
             if (hi < 0)
                 return false;
-            let lo: number = this.readByte();
+            let lo = this.readByte();
             if (lo < 0)
                 return false;
             result[i] = ((hi ^ 128) - 128) << 8 | lo;
@@ -301,39 +282,39 @@ export abstract class QOADecoder extends QOABase {
      * Returns the number of samples per channel.
      * @param samples PCM samples.
      */
-    public readFrame(samples: Int16Array): number {
+    readFrame(samples) {
         if (this.#positionSamples > 0 && this.#readBits(32) != this.frameHeader)
             return -1;
-        let samplesCount: number = this.#readBits(16);
+        let samplesCount = this.#readBits(16);
         if (samplesCount <= 0 || samplesCount > 5120 || samplesCount > this.#totalSamples - this.#positionSamples)
             return -1;
-        let channels: number = this.getChannels();
-        let slices: number = (samplesCount + 19) / 20 | 0;
+        let channels = this.getChannels();
+        let slices = (samplesCount + 19) / 20 | 0;
         if (this.#readBits(16) != 8 + channels * (16 + slices * 8))
             return -1;
-        const lmses: LMS[] = new Array(8);
+        const lmses = new Array(8);
         for (let _i0 = 0; _i0 < 8; _i0++) {
             lmses[_i0] = new LMS();
         }
-        for (let c: number = 0; c < channels; c++) {
+        for (let c = 0; c < channels; c++) {
             if (!this.#readLMS(lmses[c].history) || !this.#readLMS(lmses[c].weights))
                 return -1;
         }
-        for (let sampleIndex: number = 0; sampleIndex < samplesCount; sampleIndex += 20) {
-            for (let c: number = 0; c < channels; c++) {
-                let scaleFactor: number = this.#readBits(4);
+        for (let sampleIndex = 0; sampleIndex < samplesCount; sampleIndex += 20) {
+            for (let c = 0; c < channels; c++) {
+                let scaleFactor = this.#readBits(4);
                 if (scaleFactor < 0)
                     return -1;
                 scaleFactor = QOADecoder.SCALE_FACTORS[scaleFactor];
-                let sampleOffset: number = sampleIndex * channels + c;
-                for (let s: number = 0; s < 20; s++) {
-                    let quantized: number = this.#readBits(3);
+                let sampleOffset = sampleIndex * channels + c;
+                for (let s = 0; s < 20; s++) {
+                    let quantized = this.#readBits(3);
                     if (quantized < 0)
                         return -1;
                     if (sampleIndex + s >= samplesCount)
                         continue;
-                    let dequantized: number = QOADecoder.dequantize(quantized, scaleFactor);
-                    let reconstructed: number = QOADecoder.clamp(lmses[c].predict() + dequantized, -32768, 32767);
+                    let dequantized = QOADecoder.dequantize(quantized, scaleFactor);
+                    let reconstructed = QOADecoder.clamp(lmses[c].predict() + dequantized, -32768, 32767);
                     lmses[c].update(reconstructed, dequantized);
                     samples[sampleOffset] = reconstructed;
                     sampleOffset += channels;
@@ -349,8 +330,8 @@ export abstract class QOADecoder extends QOABase {
      * Requires the input stream to be seekable with <code>SeekToByte</code>.
      * @param position Position from the beginning of the file.
      */
-    public seekToSample(position: number): void {
-        let frame: number = position / 5120 | 0;
+    seekToSample(position) {
+        let frame = position / 5120 | 0;
         this.seekToByte(frame == 0 ? 12 : 8 + frame * this.#getMaxFrameBytes());
         this.#positionSamples = frame * 5120;
     }
@@ -358,7 +339,7 @@ export abstract class QOADecoder extends QOABase {
     /**
      * Returns <code>true</code> if all frames have been read.
      */
-    public isEnd(): boolean {
+    isEnd() {
         return this.#positionSamples >= this.#totalSamples;
     }
 }
