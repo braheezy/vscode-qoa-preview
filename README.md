@@ -1,6 +1,8 @@
 # QOA Preview for VS Code
 This is an extension that allows playing of [QOA](https://qoaformat.org/) audio files.
 
+![demo](./demo.png)
+
 This is designed to be similar to the built-in audio player VS Code uses for WAV, MP3, etc.
 
 ## Installation
