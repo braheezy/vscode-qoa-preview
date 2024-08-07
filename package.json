@@ -28,19 +28,19 @@
     "local": "bun run server.ts"
   },
   "//": "START EXTENSION ATTRIBUTES",
-  "name": "qoa-vscode-extension",
-  "version": "0.0.1",
+  "name": "qoa-preview",
+  "version": "0.1.0",
   "description": "Play QOA audio files.",
-  "displayName": "qoa",
+  "displayName": "QOA Preview",
   "repository": {
     "type": "git",
-    "url": "https://github.com/braheezy/qoa-vscode-extension"
+    "url": "https://github.com/braheezy/vscode-qoa-preview"
   },
   "contributes": {
     "customEditors": [
       {
-        "viewType": "qoa-vscode-extension.qoaPreview",
-        "displayName": "QOAPlayer",
+        "viewType": "braheezy.qoa-preview",
+        "displayName": "QOA Preview",
         "selector": [
           {
             "filenamePattern": "*.qoa"

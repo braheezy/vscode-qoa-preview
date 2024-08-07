@@ -1,5 +1,7 @@
 import { serve } from "bun";
 
+// Serve up the local test/ directory for faster development
+
 serve({
     fetch(req) {
         const url = new URL(req.url);

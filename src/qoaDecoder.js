@@ -1,3 +1,6 @@
+// This code is licensed under the standard MIT license.
+// Copyright (C) 2023-2024 Piotr Fusik
+
 // Generated automatically with "fut". Do not edit.
 
 /**

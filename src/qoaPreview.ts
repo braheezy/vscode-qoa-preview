@@ -1,8 +1,15 @@
 import * as vscode from 'vscode';
 import { Utils } from 'vscode-uri';
+import { Disposable } from './dispose';
+
+/*
+This file was created by taking the audioPreview.ts (and mediaPreview.ts it depended on) and doing
+a brute force merge until it did what I wanted. Most of this is boilerplate that sets up view states
+and getting the file the user has selected
+*/
 
 class QOAPreviewProvider implements vscode.CustomReadonlyEditorProvider {
-    public static readonly viewType = 'qoa-vscode-extension.qoaPreview';
+    public static readonly viewType = 'braheezy.qoa-preview';
 
     constructor(
         private readonly extensionRoot: vscode.Uri,
@@ -23,47 +30,16 @@ export const enum PreviewState {
     Visible,
     Active,
 }
-export function disposeAll(disposables: vscode.Disposable[]) {
-    while (disposables.length) {
-        const item = disposables.pop();
-        if (item) {
-            item.dispose();
-        }
-    }
-}
-class QOAPreview {
+
+class QOAPreview extends Disposable {
     protected previewState = PreviewState.Visible;
-    private _isDisposed = false;
-
-    protected _disposables: vscode.Disposable[] = [];
-
-    public dispose(): any {
-        if (this._isDisposed) {
-            return;
-        }
-        this._isDisposed = true;
-        disposeAll(this._disposables);
-    }
-
-    protected _register<T extends vscode.Disposable>(value: T): T {
-        if (this._isDisposed) {
-            value.dispose();
-        } else {
-            this._disposables.push(value);
-        }
-        return value;
-    }
-
-    protected get isDisposed() {
-        return this._isDisposed;
-    }
-
 
     constructor(
         private readonly extensionRoot: vscode.Uri,
         protected readonly resource: vscode.Uri,
         protected readonly webviewEditor: vscode.WebviewPanel,
     ) {
+        super();
         webviewEditor.webview.options = {
             enableScripts: true,
             enableForms: false,
@@ -108,6 +84,7 @@ class QOAPreview {
         this.updateState();
     }
 
+    // This file returns the actual HTML the user will see and is inspired by the built-in media playter
     protected async getWebviewContents(): Promise<string> {
         const version = Date.now().toString();
         const settings = {
@@ -171,12 +148,10 @@ class QOAPreview {
         }
         return webviewEditor.webview.asWebviewUri(resource).with({ query: `version=${version}` }).toString();
     }
-
     private extensionResource(...parts: string[]) {
         const resourcePath = this.webviewEditor.webview.asWebviewUri(vscode.Uri.joinPath(this.extensionRoot, ...parts));
         return resourcePath;
     }
-
     protected updateState() {
         if (this.previewState === PreviewState.Disposed) {
             return;
@@ -206,7 +181,6 @@ class QOAPreview {
     protected escapeAttribute(value: string | vscode.Uri): string {
         return value.toString().replace(/"/g, '&quot;');
     }
-
     protected getNonce() {
         let text = '';
         const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
@@ -215,7 +189,6 @@ class QOAPreview {
         }
         return text;
     }
-
 }
 
 export function registerQOAPreviewSupport(context: vscode.ExtensionContext): vscode.Disposable {

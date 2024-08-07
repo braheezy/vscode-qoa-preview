@@ -1,5 +1,17 @@
 import { QOADecoder } from "../qoaDecoder.js";
 
+/*
+The design goal is to create a audio player that looks as close as (reasonably) possible to the built-in VS Code audio
+player. They simply use the `audio` element and some basic CSS, but naturally, that element does not support QOA files.
+
+Being an Electon app, the Blink web engine is used and so the audio player looks like the default Chrome player.
+This file is concerned with:
+- Loading and decoding QOA files
+- Managing QOA playback
+- Handling erros and displaying the VS Code-style error message
+- Audio player
+*/
+
 (async function () {
 	const playPauseBtn = document.querySelector('.play-pause');
 	const seekSlider = document.querySelector('.seek-slider');
@@ -18,13 +30,18 @@ import { QOADecoder } from "../qoaDecoder.js";
 	let duration = 0;
 	let startTime = 0;
 	let animationFrameId;
+	// The audio player progress bar (also seek controls) is going be calculated by keeping timers on
+	// how long the audio context has been playing and using math with the sample rate to calculate the
+	// exact sample we're on. Then playing at a certain sample and syncing the progress is easier.
 	let sampleRate;
 	let totalSamples;
 	let currentSample = 0;
 	let isSeeking = false;
 	let isInitialized = false;
+	// Track how long the audio context has been paused so we can factor that timing calculations.
 	let pauseTime = 0;
 
+	// Ultimately used to get the path the file to play.
 	function getSettings() {
 		const element = document.getElementById('settings');
 		if (element) {
@@ -39,9 +56,10 @@ import { QOADecoder } from "../qoaDecoder.js";
 	const settings = getSettings();
 	const vscode = acquireVsCodeApi();
 
+	// Load the QOA file, decode it, and put into an AudioBuffer
+	// On failure, the audio-player is hidden and error message shown.
 	async function fetchAndDecodeAudio() {
 		try {
-			vscode.postMessage({ type: 'error', message: "fuck" })
 			const response = await fetch(settings.src);
 			const buffer = await response.arrayBuffer();
 
@@ -97,12 +115,16 @@ import { QOADecoder } from "../qoaDecoder.js";
 		}
 	}
 
+	// pretty print elapsed time helper
 	function formatTime(seconds) {
 		const minutes = Math.floor(seconds / 60);
 		const secs = Math.floor(seconds % 60);
 		return `${minutes}:${secs < 10 ? '0' : ''}${secs}`;
 	}
 
+	// Create a new AudioBufferSourceNode and bind the audio buffer to it
+	// Once an audio source is start(), it plays to the end (assuming you don't pause) and cleans
+	// itself up. So we need a new one of these during "rewind" operations, seeking backwards
 	function createSource() {
 		source = context.createBufferSource();
 		source.buffer = audioBuffer;
@@ -120,41 +142,35 @@ import { QOADecoder } from "../qoaDecoder.js";
 		};
 	}
 
+	// Start or resume audio playback
 	function playAudio() {
+		// Handle resuming play.
+		// The player starts in the "suspended" state because we create the AudioContext without
+		// user input. so the extra isInitialized flag helps.
 		if (context.state === 'suspended' && isInitialized) {
 			context.resume();
-			startTime = context.currentTime - pauseTime; // Resume from the paused time
-			isPlaying = true;
-			playIcon.style.display = 'none';
-			pauseIcon.style.display = 'block';
-			updateProgress();
-			return;
-		}
-
-		if (!isInitialized) {
-			createSource();
-			source.start(0, currentSample / sampleRate);
-			startTime = context.currentTime;
-			isPlaying = true;
-			playIcon.style.display = 'none';
-			pauseIcon.style.display = 'block';
-			isInitialized = true;
-			updateProgress();
+			// Resume from the paused time
+			startTime = context.currentTime - pauseTime;
 		} else {
+			if (!isInitialized) {
+				isInitialized = true;
+			}
 			createSource();
 			source.start(0, currentSample / sampleRate);
 			startTime = context.currentTime - (currentSample / sampleRate);
-			isPlaying = true;
-			playIcon.style.display = 'none';
-			pauseIcon.style.display = 'block';
-			updateProgress();
 		}
+
+		isPlaying = true;
+		playIcon.style.display = 'none';
+		pauseIcon.style.display = 'block';
+		updateProgress();
 	}
 
+	// Pause audio playback (but keep it alive for later)
 	function pauseAudio() {
 		if (context.state === 'running') {
 			context.suspend();
-			pauseTime = context.currentTime - startTime; // Save the pause time
+			pauseTime = context.currentTime - startTime;
 			isPlaying = false;
 			playIcon.style.display = 'block';
 			pauseIcon.style.display = 'none';
@@ -162,29 +178,36 @@ import { QOADecoder } from "../qoaDecoder.js";
 		}
 	}
 
+	// Sync progress bar to sample position
 	function updateProgress() {
-		if (isPlaying && isInitialized) {
-			const elapsed = context.currentTime - startTime;
-			currentSample = elapsed * sampleRate;
-			const progress = (elapsed / duration) * 100;
-			seekSlider.value = elapsed;
-			seekSlider.style.setProperty('--seek-before-width', `${progress}%`); // Update progress bar
-			timeDisplay.textContent = `${formatTime(elapsed)} / ${formatTime(duration)}`;
-			animationFrameId = requestAnimationFrame(updateProgress);
-		}
+		const elapsed = context.currentTime - startTime;
+		currentSample = elapsed * sampleRate;
+		const progress = (elapsed / duration) * 100;
+		seekSlider.value = elapsed;
+		seekSlider.style.setProperty('--seek-before-width', `${progress}%`);
+		timeDisplay.textContent = `${formatTime(elapsed)} / ${formatTime(duration)}`;
+		animationFrameId = requestAnimationFrame(updateProgress);
 	}
+
+	// Handle new sample position by user
 	function seekAudio() {
-		const seekTime = currentSample / sampleRate; // Calculate the seek time
+		const seekTime = currentSample / sampleRate;
+
+		// Get rid of this source and get a new one at the right position
 		source.disconnect()
 		createSource();
 		source.start(0, seekTime);
+
 		if (isPlaying) {
-			startTime = context.currentTime - seekTime; // Adjust start time based on seek time
+			// Adjust start time based on seek time
+			startTime = context.currentTime - seekTime;
 		} else {
-			pauseTime = seekTime; // Adjust pause time based on seek time if not playing
+			// Allow the user to seek while the audio is paused.
+			pauseTime = seekTime;
 		}
 	}
 
+	// Toggle audio playback
 	playPauseBtn.addEventListener('click', () => {
 		if (isPlaying) {
 			pauseAudio();
@@ -193,6 +216,7 @@ import { QOADecoder } from "../qoaDecoder.js";
 		}
 	});
 
+	// Toggle mute by settting the gain to 1 or 0 (muted)
 	muteBtn.onclick = () => {
 		if (!muteBtn.classList.contains("activated")) {
 			gainNode.gain.setValueAtTime(0, context.currentTime);
@@ -207,7 +231,7 @@ import { QOADecoder } from "../qoaDecoder.js";
 		}
 	};
 
-
+	// Allow the user to click somewhere to seek
 	seekSlider.addEventListener('input', () => {
 		if (isInitialized) {
 			currentSample = parseFloat(seekSlider.value) * sampleRate;
@@ -216,6 +240,7 @@ import { QOADecoder } from "../qoaDecoder.js";
 		}
 	});
 
+	// Allow the user to drag the slider to seek
 	seekSlider.addEventListener('change', () => {
 		if (isInitialized) {
 			currentSample = parseFloat(seekSlider.value) * sampleRate;
@@ -224,8 +249,10 @@ import { QOADecoder } from "../qoaDecoder.js";
 		}
 	});
 
+	// Load the song and audio player, or error out
 	await fetchAndDecodeAudio();
 
+	// On error, kick back to vs code to open as text or binary.
 	document.querySelector('.open-file-link')?.addEventListener('click', (e) => {
 		e.preventDefault();
 		vscode.postMessage({
