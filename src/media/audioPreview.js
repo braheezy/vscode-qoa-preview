@@ -138,8 +138,8 @@ import { QOADecoder } from "../qoaDecoder.js";
 			isPlaying = true;
 			playIcon.style.display = 'none';
 			pauseIcon.style.display = 'block';
-			updateProgress();
 			isInitialized = true;
+			updateProgress();
 		} else {
 			createSource();
 			source.start(0, currentSample / sampleRate);
@@ -163,7 +163,7 @@ import { QOADecoder } from "../qoaDecoder.js";
 	}
 
 	function updateProgress() {
-		if (isPlaying) {
+		if (isPlaying && isInitialized) {
 			const elapsed = context.currentTime - startTime;
 			currentSample = elapsed * sampleRate;
 			const progress = (elapsed / duration) * 100;
@@ -209,15 +209,15 @@ import { QOADecoder } from "../qoaDecoder.js";
 
 
 	seekSlider.addEventListener('input', () => {
-		currentSample = parseFloat(seekSlider.value) * sampleRate;
-		timeDisplay.textContent = `${formatTime(currentSample / sampleRate)} / ${formatTime(duration)}`;
-		if (isPlaying) {
+		if (isInitialized) {
+			currentSample = parseFloat(seekSlider.value) * sampleRate;
+			timeDisplay.textContent = `${formatTime(currentSample / sampleRate)} / ${formatTime(duration)}`;
 			seekAudio();
 		}
 	});
 
 	seekSlider.addEventListener('change', () => {
-		if (isPlaying) {
+		if (isInitialized) {
 			currentSample = parseFloat(seekSlider.value) * sampleRate;
 			timeDisplay.textContent = `${formatTime(currentSample / sampleRate)} / ${formatTime(duration)}`;
 			seekAudio();
