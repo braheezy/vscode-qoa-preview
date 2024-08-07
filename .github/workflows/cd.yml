@@ -37,6 +37,8 @@ jobs:
     steps:
       - name: Download VSIX artifact
         uses: actions/download-artifact@v4
+        with:
+          path: .
 
       - name: Create a Release
         uses: softprops/action-gh-release@v2
