@@ -40,13 +40,15 @@ jobs:
     steps:
       - name: Download VSIX artifact
         uses: actions/download-artifact@v4
+        with:
+          path: .
 
       - run: ls
 
       - name: Create a Release
         uses: softprops/action-gh-release@v2
         with:
-          files: qoa-preview-${{ env.VERSION }}.vsix
+          files: artifact/qoa-preview-${{ env.VERSION }}.vsix
           generate_release_notes: true
           draft: true
           fail_on_unmatched_files: true
