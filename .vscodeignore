@@ -6,5 +6,6 @@
 !.vscodeignore
 !dist/*
 !CHANGELOG.md
-!LICENSE.txt
+!LICENSE
 !README.md
+!src/**/*
