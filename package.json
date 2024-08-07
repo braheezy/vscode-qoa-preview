@@ -39,7 +39,10 @@
   },
   "license": "MIT",
   "homepage": "https://github.com/braheezy/vscode-qoa-preview",
-  "bugs": "https://github.com/braheezy/vscode-qoa-preview/issues",
+  "bugs": {
+    "url": "https://github.com/braheezy/vscode-qoa-preview/issues"
+  },
+  "icon": "images/qoa-logo-new.png",
   "contributes": {
     "customEditors": [
       {
