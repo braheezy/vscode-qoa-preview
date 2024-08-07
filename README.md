@@ -10,7 +10,7 @@ This is designed to be similar to the built-in audio player VS Code uses for WAV
 2. Click install.
 
 ## Usage
-Click on a QOA file, and play! It supports:
+Click on a QOA file, and play it! There is support for:
 
 - Play/pause
 - Mute
@@ -30,7 +30,7 @@ There are no settings.
 ## Development
 This project uses [Bun](https://bun.sh/) as it's JavaScript runtime, so ensure that's installed.
 
-I found it quicker to iterate on the HTML/JS/CSS outside of VS Code, so that's what in `test/` and it can be hosted with `bun run local`.
+I found it quicker to iterate on the HTML/JS/CSS outside of VS Code, so that's what in `test/` and it can be hosted with `bun run local`. Those files are not 100% copy-paste-able to the extension code, so watch out.
 
 Once you're ready to test in VS Code, you should be able to press F5 in this project to auto-launch the debug config. You'll want to open the Web Developer Tools using the Command Palette for classic web dev debugging tools.
 
@@ -39,6 +39,10 @@ Once you're ready to test in VS Code, you should be able to press F5 in this pro
 - `qoaDecoder.js`: Vendored QOA decoder
 - `qoaPreview.ts`: The main logic for the extension, and notably, where the HTML template is.
 - `media/`: JS/CSS/SVG assets for rendering.
+
+- To package the extension into a VSIX file:
+
+      bun run package
 
 ## Credits
 - [pfusik's QOA Decoder JS transpile](https://github.com/pfusik/qoa-fu/blob/c8e18a7d269f97c12e9be63b1ae30ebb47cb3366/transpiled/QOA.js) to decode QOA files. I've vendored the MIT licensed file into this project.

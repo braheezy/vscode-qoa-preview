@@ -17,6 +17,9 @@ const config: BuildOptions = {
     ".js": "js",
   },
   logLevel: "info",
+  minify: true,
+  sourcemap: false,
+  treeShaking: true,
 };
 
 export default config;
