@@ -18,6 +18,8 @@ Click on a QOA file, and play it! There is support for:
 - Mute
 - Seek
 
+To convert audio files to and from the QOA format, or for a more featured player, check out [`goqoa`](https://github.com/braheezy/goqoa)!
+
 ## Extension Settings
 There are no settings.
 
