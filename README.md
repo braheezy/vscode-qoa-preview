@@ -42,9 +42,9 @@ Once you're ready to test in VS Code, you should be able to press F5 in this pro
 - `qoaPreview.ts`: The main logic for the extension, and notably, where the HTML template is.
 - `media/`: JS/CSS/SVG assets for rendering.
 
-- To package the extension into a VSIX file:
+To package the extension into a VSIX file:
 
-      bun run package
+    bun run package
 
 ## Credits
 - [pfusik's QOA Decoder JS transpile](https://github.com/pfusik/qoa-fu/blob/c8e18a7d269f97c12e9be63b1ae30ebb47cb3366/transpiled/QOA.js) to decode QOA files. I've vendored the MIT licensed file into this project.
