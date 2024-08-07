@@ -88,6 +88,12 @@ import { QOADecoder } from "../qoaDecoder.js";
 
 		} catch (error) {
 			console.error('Error processing QOA file:', error);
+
+			// Hide the audio-player div
+			document.getElementById('audio-player').style.display = 'none';
+
+			// Show the loading-error div
+			document.getElementById('loading-error').style.display = 'block';
 		}
 	}
 
@@ -219,4 +225,11 @@ import { QOADecoder } from "../qoaDecoder.js";
 	});
 
 	await fetchAndDecodeAudio();
+
+	document.querySelector('.open-file-link')?.addEventListener('click', (e) => {
+		e.preventDefault();
+		vscode.postMessage({
+			type: 'reopen-as-text',
+		});
+	});
 })();

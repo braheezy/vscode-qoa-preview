@@ -196,3 +196,8 @@ video {
 #mute-btn:hover::before {
 	background: rgba(0, 0, 0, 0.1);
 }
+
+.loading-error {
+	margin: 1em;
+	display: block;
+}

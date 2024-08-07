@@ -134,7 +134,7 @@ class QOAPreview {
   <meta id="settings" data-settings="${this.escapeAttribute(JSON.stringify(settings))}">
 </head>
 <body class="container loading" data-vscode-context='{ "preventDefaultContextMenuItems": true }'>
-  <div class="audio-player">
+  <div class="audio-player" id="audio-player">
     <button class="play-pause" id="play-pause-btn">
       <img src="${this.escapeAttribute(this.extensionResource('src', 'media', 'play.svg'))}" alt="Play" id="play-icon">
       <img src="${this.escapeAttribute(this.extensionResource('src', 'media', 'pause.svg'))}" alt="Pause" id="pause-icon" style="display: none;">
@@ -145,6 +145,10 @@ class QOAPreview {
       <img src="${this.escapeAttribute(this.extensionResource('src', 'media', 'volume.svg'))}" alt="Volume" id="volume-icon">
       <img src="${this.escapeAttribute(this.extensionResource('src', 'media', 'mute.svg'))}" alt="Mute" id="mute-icon" style="display: none;">
     </button>
+  </div>
+  <div class="loading-error" id="loading-error" style="display: none;">
+    <p>${vscode.l10n.t("An error occurred while loading the audio file.")}</p>
+    <a href="#" class="open-file-link">${vscode.l10n.t("Open file using VS Code's standard text/binary editor?")}</a>
   </div>
   <script type="module" src="${this.escapeAttribute(this.extensionResource('src', 'qoaDecoder.js'))}" nonce="${nonce}"></script>
   <script type="module" src="${this.escapeAttribute(this.extensionResource('src', 'media', 'audioPreview.js'))}" nonce="${nonce}"></script>
@@ -188,41 +192,13 @@ class QOAPreview {
         if (this.previewState === PreviewState.Disposed) {
             return;
         }
-        try {
-            const content = await this.getWebviewContents();
-            if (this.previewState as PreviewState === PreviewState.Disposed) {
-                return;
-            }
-            this.webviewEditor.webview.html = content;
-        } catch (error) {
-            const errorMessage = /* html */`<!DOCTYPE html>
-        <html lang="en">
-        <head>
-          <meta charset="UTF-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <title>Audio Preview Error</title>
-          <style>
-            body { font-family: Arial, sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; background-color: #f1f3f4; }
-            .loading-error { text-align: center; }
-            .loading-error p { margin: 0 0 1em; }
-            .open-file-link { color: #007acc; text-decoration: none; }
-          </style>
-        </head>
-        <body>
-          <div class="loading-error">
-            <p>An error occurred while loading the audio file.</p>
-            <a href="#" class="open-file-link" onclick="reopenAsText()">Open file using VS Code's standard text/binary editor?</a>
-          </div>
-          <script>
-            const vscode = acquireVsCodeApi();
-            function reopenAsText() {
-              vscode.postMessage({ type: 'reopen-as-text' });
-            }
-          </script>
-        </body>
-        </html>`;
-            this.webviewEditor.webview.html = errorMessage;
+
+        const content = await this.getWebviewContents();
+        if (this.previewState as PreviewState === PreviewState.Disposed) {
+            return;
         }
+        this.webviewEditor.webview.html = content;
+
     }
     protected reopenAsText(resource: vscode.Uri, viewColumn: vscode.ViewColumn | undefined) {
         vscode.commands.executeCommand('vscode.openWith', resource, 'default', viewColumn);
