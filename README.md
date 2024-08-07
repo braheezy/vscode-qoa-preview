@@ -6,8 +6,10 @@ This is an extension that allows playing of [QOA](https://qoaformat.org/) audio 
 This is designed to be similar to the built-in audio player VS Code uses for WAV, MP3, etc.
 
 ## Installation
-1. Search in the Extension page on VS Code for "QOA Player"
-2. Click install.
+Download the latest VSIX from the Releases page and install it to VS Code:
+
+    wget https://github.com/braheezy/vscode-qoa-preview/releases/download/v0.1.0/qoa-preview-0.1.0.vsix
+    code --install-extension qoa-preview-0.1.0.vsix
 
 ## Usage
 Click on a QOA file, and play it! There is support for:
